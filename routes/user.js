@@ -1,5 +1,5 @@
 const express = require('express');
-const {getAllUsers, registerUser, loginUser, getUserById,getUserFeed,  toggleConnection, updateProfileImage, updateUserDetails  } = require('../controllers/userController.js'); // Ensure this path is correct
+const {getAllUsers, registerUser, loginUser, getUserById,getUserFeed,  toggleConnection, updateProfileImage, updateUserDetails, deleteUserAndReviews ,deleteUserByUsername } = require('../controllers/userController.js'); // Ensure this path is correct
 const router = express.Router();
 const upload = require('../middleware/upload.js');
 
@@ -12,5 +12,9 @@ router.get('/:id/feed', authenticateToken, getUserFeed);
 router.post('/toggleconnection',authenticateToken, toggleConnection);
 router.put('/updateprofileimage', authenticateToken , upload,updateProfileImage);
 router.put('/updateuserdata', authenticateToken, updateUserDetails);
+
+router.delete('/deleteUserAndReviews', authenticateToken, deleteUserAndReviews);
+
+router.delete('/:username', deleteUserByUsername);
 
 module.exports = router;

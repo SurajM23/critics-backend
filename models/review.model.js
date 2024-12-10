@@ -33,6 +33,6 @@ const reviewSchema = new mongoose.Schema({
         type: [String],
         default: []
     }
-});
+}, { timestamps: true });  // Enable timestamps to automatically add createdAt and updatedAt
 
 module.exports = mongoose.model('Review', reviewSchema);

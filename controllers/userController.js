@@ -395,3 +395,100 @@ exports.updateUserDetails = async (req, res) => {
         });
     }
 };
+
+
+exports.deleteUserAndReviews = async (req, res) => {
+    try {
+        const userId = req.userId; // Get the logged-in user's ID from the token
+
+        // Validate the user ID
+        if (!userId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'User ID is required.'
+            });
+        }
+
+        // Delete reviews for the user (if any exist)
+        const deletedReviews = await Review.deleteMany({ author: userId });
+
+        // Find and delete the user
+        const deletedUser = await User.findByIdAndDelete(userId);
+
+        if (!deletedUser) {
+            return res.status(404).json({
+                status: 404,
+                message: 'User not found.'
+            });
+        }
+
+        res.status(200).json({
+            status: 200,
+            message: 'User and their reviews (if any) have been deleted successfully.'
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            status: 500,
+            message: 'An error occurred while deleting user and reviews.'
+        });
+    }
+};
+
+exports.deleteUserByUsername = async (req, res) => {
+    try {
+        // Ensure that the request is from an admin. 
+        // Since you are not using any authentication, make sure that only authorized users 
+        // can call this API (e.g., by IP address or internal mechanism).
+        // For now, we are not implementing authentication. You can implement this later.
+
+        // Get the username parameter from the request
+        const { username } = req.params;
+
+        if (!username) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Username is required.'
+            });
+        }
+
+        // Find the user by username
+        const user = await User.findOne({ username });
+
+        if (!user) {
+            return res.status(404).json({
+                status: 404,
+                message: 'User not found.'
+            });
+        }
+
+        // Delete the user's reviews from the Review collection
+        const deletedReviews = await Review.deleteMany({ author: user._id });
+
+        // Now, delete the user from the User collection
+        const deletedUser = await User.findOneAndDelete({ username });
+
+        if (!deletedUser) {
+            return res.status(404).json({
+                status: 404,
+                message: 'User could not be deleted.'
+            });
+        }
+
+        // Respond with success message
+        res.status(200).json({
+            status: 200,
+            message: `User and their reviews (if any) have been deleted successfully.`
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            status: 500,
+            message: 'An error occurred while deleting the user and their data.'
+        });
+    }
+};
+
+
+

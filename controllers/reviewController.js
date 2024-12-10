@@ -88,12 +88,12 @@ exports.getAllReviews = async (req, res) => {
         // Calculate the number of reviews to skip based on the page and limit
         const skip = (page - 1) * limit;
 
-        // Get reviews with pagination, sorted by createdAt (most recent first)
+        // Fetch reviews sorted by 'createdAt' in descending order (latest first)
         const reviews = await Review.find()
-            .sort({ createdAt: -1 })  // Sort by creation date in descending order
+            .sort({ createdAt: -1 })  // Sort by 'createdAt' in descending order
             .skip(skip)  // Skip reviews for the previous pages
             .limit(limit)  // Limit to the number of reviews per page
-            .populate('author', 'username');  // Populate the 'author' field with the 'username' of the user
+            .populate('author', 'username');  // Populate the 'author' field with the 'username'
 
         // Get total number of reviews for metadata
         const totalReviews = await Review.countDocuments();
@@ -291,6 +291,7 @@ exports.toggleLike = async (req, res) => {
         });
     }
 };
+
 
 
 
