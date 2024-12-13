@@ -292,6 +292,103 @@ exports.toggleLike = async (req, res) => {
     }
 };
 
+exports.updateReview = async (req, res) => {
+    const { id } = req.params; // Review ID from URL
+    const { movieTitle, reviewText, rating, tags } = req.body; // Updated data
+    const userId = req.userId; // User ID from token
+
+    try {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                status: 400,
+                success: false,
+                message: "Invalid review ID.",
+            });
+        }
+
+        if (typeof rating !== 'undefined' && (rating < 1 || rating > 10)) {
+            return res.status(400).json({
+                status: 400,
+                success: false,
+                message: "Rating should be between 1 and 10.",
+            });
+        }
+
+        const review = await Review.findOne({ _id: id, author: userId });
+        if (!review) {
+            return res.status(404).json({
+                status: 404,
+                success: false,
+                message: "Review not found or you are not authorized to edit this review.",
+            });
+        }
+
+        if (movieTitle) review.movieTitle = movieTitle; 
+        if (reviewText) review.reviewText = reviewText;
+        if (rating) review.rating = rating;
+        if (tags) review.tags = tags;
+
+        await review.save();
+
+        res.status(200).json({
+            status: 200,
+            success: true,
+            message: "Review updated successfully.",
+            data: review,
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 500,
+            success: false,
+            message: error.message || "An unexpected error occurred.",
+        });
+    }
+};
+
+exports.deleteReview = async (req, res) => {
+    const { id } = req.params; 
+    const userId = req.userId; 
+
+    try {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                status: 400,
+                success: false,
+                message: "Invalid review ID.",
+            });
+        }
+
+        const review = await Review.findOneAndDelete({ _id: id, author: userId });
+        if (!review) {
+            return res.status(404).json({
+                status: 404,
+                success: false,
+                message: "Review not found or you are not authorized to delete this review.",
+            });
+        }
+
+        await User.findByIdAndUpdate(userId, {
+            $pull: { reviews: id },
+        });
+
+        res.status(200).json({
+            status: 200,
+            success: true,
+            message: "Review deleted successfully.",
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 500,
+            success: false,
+            message: error.message || "An unexpected error occurred.",
+        });
+    }
+};
+
+
+
+
+
 
 
 
