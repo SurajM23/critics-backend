@@ -5,6 +5,7 @@ const upload = require('../middleware/upload.js');
 
 const authenticateToken = require('../middleware/authMiddleware');
 router.get('/user_list', getAllUsers);
+
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.get('/:id', authenticateToken, getUserById);

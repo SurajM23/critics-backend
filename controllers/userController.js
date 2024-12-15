@@ -10,21 +10,61 @@ const cloudinary = require('cloudinary').v2;
 
 exports.getAllUsers = async (req, res) => {
     try {
-        // Fetch all users, selecting 'username', 'profileImageUrl', and '_id'
-        const users = await User.find().select('username profileImageUrl _id');  // Include _id
+        // Get token from the Authorization header
+        const token = req.headers.authorization?.split(' ')[1]; // Assuming 'Bearer <token>' format
+        
+        if (!token) {
+            return res.status(401).json({
+                status: 401,
+                message: 'Authorization token missing.',
+            });
+        }
 
-        // Example transformation: Add absolute URL for profileImageUrl if necessary
+        // Decode the token
+        const decodedToken = jwt.verify(token, process.env.JWT_SECRET); // Use your JWT_SECRET
+        
+        // Extract userId from the decoded token
+        const userId = decodedToken?.userId; // Corrected key to match your token structure
+
+        if (!userId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Invalid token. User ID not found.',
+            });
+        }
+
+        // Fetch all users except the one with the given userId
+        const users = await User.find({ _id: { $ne: userId } }).select('username profileImageUrl _id');
+
+        // Transform users as required
         const transformedUsers = users.map(user => ({
-            id: user._id,  // Include the user ID
+            id: user._id,
             username: user.username,
             profileImageUrl: user.profileImageUrl
-                ? `${process.env.BASE_URL}/${user.profileImageUrl}` // Append base URL if the image path is relative
-                : null, // Handle cases where profileImageUrl is missing
+                ? `${process.env.BASE_URL}/${user.profileImageUrl}`
+                : null,
         }));
 
         // Send the list of users as response
         res.status(200).json(new ApiResponse(200, transformedUsers));
     } catch (error) {
+        console.error('Error in getAllUsers:', error);
+
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(400).json({
+                status: 400,
+                message: 'Invalid token.',
+            });
+        }
+
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({
+                status: 401,
+                message: 'Token expired.',
+            });
+        }
+
+        // Catch any other errors
         res.status(500).json({
             status: 500,
             message: 'An error occurred while fetching users.',
@@ -437,14 +477,7 @@ exports.deleteUserAndReviews = async (req, res) => {
 
 exports.deleteUserByUsername = async (req, res) => {
     try {
-        // Ensure that the request is from an admin. 
-        // Since you are not using any authentication, make sure that only authorized users 
-        // can call this API (e.g., by IP address or internal mechanism).
-        // For now, we are not implementing authentication. You can implement this later.
-
-        // Get the username parameter from the request
         const { username } = req.params;
-
         if (!username) {
             return res.status(400).json({
                 status: 400,
