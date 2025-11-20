@@ -13,7 +13,7 @@ router.post('/get_user_posts', getUserPosts);
 
 router.get('/reviews/:id', getReviewById);
 
-router.post('/like', toggleLike);
+router.post('/like', authenticateToken, toggleLike);
 
 router.put('/update/:id', authenticateToken, updateReview);
 

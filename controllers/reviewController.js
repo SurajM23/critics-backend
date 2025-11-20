@@ -84,6 +84,7 @@ exports.getAllReviews = async (req, res) => {
         // Get pagination parameters from the request body
         const page = parseInt(req.body.page) || 1;  // Default to page 1 if not provided
         const limit = parseInt(req.body.limit) || 10;  // Default to 10 reviews per page if not provided
+        const { userId } = req.body; // Optional userId to check if user liked the reviews
 
         // Calculate the number of reviews to skip based on the page and limit
         const skip = (page - 1) * limit;
@@ -101,13 +102,28 @@ exports.getAllReviews = async (req, res) => {
         // Calculate the total number of pages
         const totalPages = Math.ceil(totalReviews / limit);
 
+        // Add totalLikes and isLiked to each review
+        const reviewsWithLikeInfo = reviews.map(review => {
+            const reviewObj = review.toObject();
+            reviewObj.totalLikes = review.likes.length;
+            
+            // Check if user liked this review (only if userId provided and valid)
+            if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+                reviewObj.isLiked = review.likes.includes(userId);
+            } else {
+                reviewObj.isLiked = false;
+            }
+            
+            return reviewObj;
+        });
+
         // Respond with the reviews and pagination metadata
         res.status(200).json({
             status: 200,
             success: true,
             message: 'Success',
             data: {
-                reviews,
+                reviews: reviewsWithLikeInfo,
                 totalReviews,
                 totalPages,
                 currentPage: page,
@@ -118,6 +134,7 @@ exports.getAllReviews = async (req, res) => {
         const statusCode = error.statusCode || 500;
         res.status(statusCode).json({
             status: statusCode,
+            success: false,
             message: error.message || "An unexpected error occurred."
         });
     }
@@ -127,15 +144,16 @@ exports.getUserPosts = async (req, res) => {
     
     try {
         // Extract parameters from the request body
-        const { userId, page = 1, limit = 10 } = req.body;
+        const { userId, page = 1, limit = 10, requestingUserId } = req.body;
 
         // Validate userId
         if (!userId) {
-            return res.status(400).json({
-                status: 400,
-                success: false,
-                message: "User ID is required.",
-            });
+            throw new ApiError(400, "User ID is required.");
+        }
+
+        // Validate ObjectId format
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            throw new ApiError(400, "Invalid user ID format.");
         }
 
         // Convert userId to ObjectId
@@ -157,13 +175,28 @@ exports.getUserPosts = async (req, res) => {
         // Calculate the total number of pages
         const totalPages = Math.ceil(totalPosts / limit);
 
+        // Add totalLikes and isLiked to each post
+        const postsWithLikeInfo = posts.map(post => {
+            const postObj = post.toObject();
+            postObj.totalLikes = post.likes.length;
+            
+            // Check if requesting user liked this post (only if requestingUserId provided and valid)
+            if (requestingUserId && mongoose.Types.ObjectId.isValid(requestingUserId)) {
+                postObj.isLiked = post.likes.includes(requestingUserId);
+            } else {
+                postObj.isLiked = false;
+            }
+            
+            return postObj;
+        });
+
         // Respond with the posts and pagination metadata
         res.status(200).json({
             status: 200,
             success: true,
             message: 'Success',
             data: {
-                posts,
+                posts: postsWithLikeInfo,
                 totalPosts,
                 totalPages,
                 currentPage: parseInt(page),
@@ -186,21 +219,9 @@ exports.getReviewById = async (req, res) => {
         const { id } = req.params; // Get review ID from request parameters
         const { userId } = req.query; // Get user ID from query parameters
 
-        // Validate IDs
+        // Validate review ID
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({
-                status: 400,
-                success: false,
-                message: "Invalid review ID.",
-            });
-        }
-
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({
-                status: 400,
-                success: false,
-                message: "Invalid user ID.",
-            });
+            throw new ApiError(400, "Invalid review ID.");
         }
 
         // Fetch the review by ID and populate the author's profileImageUrl
@@ -208,17 +229,16 @@ exports.getReviewById = async (req, res) => {
             .populate('author', 'username profileImageUrl'); // Includes profileImageUrl for the author
 
         if (!review) {
-            return res.status(404).json({
-                status: 404,
-                success: false,
-                message: "Review not found.",
-            });
+            throw new ApiError(404, "Review not found.");
         }
 
-        // Check if the user has liked the review
-        const isLiked = review.likes.includes(userId);
+        // Check if the user has liked the review (only if userId is provided)
+        let isLiked = false;
+        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+            isLiked = review.likes.includes(userId);
+        }
 
-        // Respond with the review details, including isLiked
+        // Respond with the review details, including isLiked and totalLikes
         res.status(200).json({
             status: 200,
             success: true,
@@ -226,6 +246,7 @@ exports.getReviewById = async (req, res) => {
             data: {
                 ...review.toObject(),
                 isLiked,
+                totalLikes: review.likes.length,
             },
         });
     } catch (error) {
@@ -239,39 +260,48 @@ exports.getReviewById = async (req, res) => {
 };
 
 exports.toggleLike = async (req, res) => {
-    const { reviewId, userId } = req.body;
+    const { reviewId } = req.body;
+    const userId = req.userId; // Get userId from authenticated token
 
     try {
-        if (!reviewId || !userId) {
-            return res.status(400).json({
-                status: 400,
-                success: false,
-                message: "Review ID and User ID are required.",
-            });
+        // Validate required fields
+        if (!reviewId) {
+            throw new ApiError(400, "Review ID is required.");
         }
 
+        // Validate ObjectId format
+        if (!mongoose.Types.ObjectId.isValid(reviewId)) {
+            throw new ApiError(400, "Invalid review ID format.");
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            throw new ApiError(400, "Invalid user ID format.");
+        }
+
+        // Find the review
         const review = await Review.findById(reviewId);
         if (!review) {
-            return res.status(404).json({
-                status: 404,
-                success: false,
-                message: "Review not found.",
-            });
+            throw new ApiError(404, "Review not found.");
         }
 
+        // Check if user already liked the review
         const userIndex = review.likes.indexOf(userId);
         let liked = false;
 
         if (userIndex > -1) {
+            // User already liked, so remove the like
             review.likes.splice(userIndex, 1);
+            liked = false;
         } else {
+            // User hasn't liked, so add the like
             review.likes.push(userId);
             liked = true;
         }
 
-        // Update only likes field to avoid full document validation
-        await Review.updateOne({ _id: reviewId }, { likes: review.likes });
+        // Save the review to update the likes
+        await review.save();
 
+        // Return response with updated like count
         res.status(200).json({
             status: 200,
             success: true,
@@ -284,8 +314,9 @@ exports.toggleLike = async (req, res) => {
         });
     } catch (error) {
         console.error("Error in toggleLike:", error);
-        res.status(500).json({
-            status: 500,
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({
+            status: statusCode,
             success: false,
             message: error.message || "An unexpected error occurred.",
         });
